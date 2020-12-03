@@ -1,3 +1,4 @@
+# Written by Tyler Aubin
 #!/usr/bin/python
 
 import tty
