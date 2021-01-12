@@ -4,12 +4,22 @@ import board
 import busio
 import adafruit_vcnl4010
 
-def main():
+# In the event bus is not established in main application, call to open I2C bus
+def I2C_initialize():
     
-    # Begin our I2C connection to the sensor
-    i2c = busio.I2C(board.SCL, board.SDA)
-    sensor = adafruit_vcnl4010.VCNL4010(i2c)
+    i2c = busio.i2c(board.SCL, board.SDA)
+    return i2c
 
+
+def proximity_setup(i2c):
+    
+    # Setup sensor connection over I2C
+    sensor = adafruit_vcnl4010.VCNL4010(i2c)
+    return sensor
+
+
+def print_raw(sensor):
+    
     while True:
         distance = calc_distance(sensor.proximity)
         print('Proximity from device: {0} mm' .format(distance))
