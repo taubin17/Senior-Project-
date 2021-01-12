@@ -6,9 +6,16 @@ import adafruit_bme280
 import sys
 import termios
 import tty
+import os
 
 # A defined value of measurements to take for getting breath data
 calibration_measurements = 100
+
+# Adding proximity detection, import motion script
+sys.path.append('/home/pi/SeniorProject/WinterBreak2020/Motion/')
+
+# import proximity
+import proximity
 
 
 def main():
@@ -16,19 +23,24 @@ def main():
     # Create termios struct for detecting user input
     orig_settings = termios.tcgetattr(sys.stdin)
 
+    result_file_exists = os.path.isfile('results.csv')
+
     # Open File to write results
-    try:
+    if result_file_exists:
         fd = open('results.csv', 'a')
     # IF file doesn't exist, make it
-    except:
+    else:
+        print("File not found, creating one now!")
         fd = open('results.csv', 'w')
         fd.write("Participant, room humidity, mask on measurement, mask off measurement\n")
         fd.flush()
-        data = fd.read()
-        print(data)
-
+        
     # Variables designated for creating the BME object, as well as reading in data from BME280
     i2c = busio.I2C(board.SCL, board.SDA)
+
+    # Establish connection to I2C device
+    proximity.proximity_setup(i2c)
+
     bme280 = adafruit_bme280.Adafruit_BME280_I2C(i2c)
     baseline_humidity = bme280.humidity
     temperature = bme280.temperature
@@ -65,14 +77,23 @@ def main():
 
     # Report user mask effectivity to terminal
     print(f'\n\n{name}, your mask was approximately {mask_efficiency * 100}% effective')
+   
+    prompt_writeup(baseline_humidity, mask_on, mask_off, mask_efficiency, name, fd, orig_settings)
     
+    fd.close()
+
+    exit()
 
 
 
 
+
+
+def prompt_writeup(baseline_humidity, mask_on, mask_off, mask_efficiency, name, fd, orig_settings):
+   
     # Write the data from the user to our results file only if device owner deems output is correct
     print("Please select if you would like to save the following results.\nSelect yes(Y) or no(N).")
-
+    
     # Force linux to be character break, not line break (not require hitting enter for results)
     tty.setcbreak(sys.stdin)
 
@@ -89,22 +110,14 @@ def main():
             termios.tcsetattr(sys.stdin, termios.TCSADRAIN, orig_settings)
             print(f'File for {name} has been saved.\n')
             # fd.write("Participant, room humidity, mask on measurement, mask off measurement\n")
-            fd.write(str(name) + ',' + str(baseline_humidity) + ',' + str(mask_on) + ',' + str(mask_off) + ',' + str(mask_efficiency) + "%\n")
-            fd.close()
-            exit()
+            fd.write(str(name) + ',' + str(baseline_humidity) + ',' + str(mask_on) + ',' + str(mask_off) + ',' + str(mask_efficiency * 100) + "%\n")
+            return
 
         # If answer is no, close files and leave
         if key == "n" or key == "N":
             # Revert the terminal and leave
             termios.tcsetattr(sys.stdin, termios.TCSADRAIN, orig_settings)
-            fd.close()
-            exit()
-
-    # Close our results file
-    fd.close()
-
-    exit()
-
+            return
 
 def check_readiness(bme):
     
