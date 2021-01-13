@@ -11,8 +11,13 @@ import os
 # A defined value of measurements to take for getting breath data
 calibration_measurements = 100
 
+# Defined measurement range tuple, format shown here -> (low_end (inches), high_end (inches)). 
+prox_range = (0.5, 4)
+
 # Adding proximity detection, import motion script
 sys.path.append('/home/pi/SeniorProject/WinterBreak2020/Motion/')
+
+
 
 # import proximity
 import proximity
@@ -52,6 +57,7 @@ def main():
     check_readiness(bme280)
 
     # Now that we are ready, please begin the first procedure of the device
+    print(f'{name}, please proceed to place your mouth between {prox_range[0]} to {prox_range[1]} inches away!')
     print(f'{name}, please proceed to breathe into the device without your mask')
     mask_off = read_humidity(bme280, baseline_humidity)
     print(mask_off)
@@ -85,6 +91,8 @@ def main():
     exit()
 
 
+# Function takes in specified range, and checks if device is acceptable distance away
+def check_range(sensor):
 
 
 

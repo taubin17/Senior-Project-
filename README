@@ -11,7 +11,8 @@ Future Project Hardware support (Subject to change):
 	STM NUCLEOF446
 	ESP8266
 	BME280
-	VCNL4010
+	VCNL4010 (Does not provide necessary measurements for project; need tof sensor for project. Will be replaced)
+	Potential TOF sensor: VL6180x 5mm-200m TOF sensor
 
 Keynotes:
 

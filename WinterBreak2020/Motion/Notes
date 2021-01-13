@@ -1,0 +1,4 @@
+Testing the VCNL4010 confirms that measurements cannot be reliably converted to physical distance.
+However, correlation does show for less accurate measurements. To elaborate, differentiating 4 and 5 inches apart with the VCNL4010 is possible.
+The Inverse is true as well however, differentiating 0.003mm to 0.008 mm is not feasible, as noise is excessive.
+Project constraints list that the project must detect between 0.5in and 4in. While other sensors will be looked into, the VCNL4010 can be written to work
