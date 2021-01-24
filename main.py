@@ -8,6 +8,12 @@ import termios
 import tty
 import os
 
+
+# Import all sensor/display packages
+from Spring2021.HT16K33.display import *
+from Spring2021.VL6180.tof import *
+# import Spring2021
+
 # A defined value of measurements to take for getting breath data
 calibration_measurements = 100
 
@@ -16,11 +22,6 @@ prox_range = (0.5, 4)
 
 # Adding proximity detection, import motion script
 sys.path.append('/home/pi/SeniorProject/WinterBreak2020/Motion/')
-
-
-
-# import proximity
-import proximity
 
 
 def main():
@@ -43,12 +44,16 @@ def main():
     # Variables designated for creating the BME object, as well as reading in data from BME280
     i2c = busio.I2C(board.SCL, board.SDA)
 
-    # Establish connection to I2C device
-    proximity.proximity_setup(i2c)
-
+    # Setup BME280, take in baseline humidity and temperature
     bme280 = adafruit_bme280.Adafruit_BME280_I2C(i2c)
     baseline_humidity = bme280.humidity
     temperature = bme280.temperature
+
+    # Setup Display
+    # display = display_initialize(i2c)
+
+    # Setup TOF sensor
+    range_sensor = tof_initialize(i2c)
     
     # Get users name
     name = input('Please enter the name of the current test subject\n')
@@ -92,7 +97,7 @@ def main():
 
 
 # Function takes in specified range, and checks if device is acceptable distance away
-def check_range(sensor):
+# def check_range(sensor):
 
 
 
