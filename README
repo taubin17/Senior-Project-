@@ -4,15 +4,15 @@ Current Hardware Configuration:
 
 	Raspberry Pi 4B
 	BME280 RH/T/P sensor
-	VCNL4010 Proximity Sensor
+	VL6180X (Replaced VCNL4010)
+	HT16K33 4x7 Segment Display
 
 Future Project Hardware support (Subject to change):
 	
 	STM NUCLEOF446
 	ESP8266
 	BME280
-	VCNL4010 (Does not provide necessary measurements for project; need tof sensor for project. Will be replaced)
-	Potential TOF sensor: VL6180x 5mm-200m TOF sensor
+	VL6180X (Replaced VCNL4010)
 
 Keynotes:
 
