@@ -12,7 +12,6 @@ import os
 # Import all sensor/display packages
 from Spring2021.HT16K33.display import *
 from Spring2021.VL6180.tof import *
-# import Spring2021
 
 # A defined value of measurements to take for getting breath data
 calibration_measurements = 100
@@ -63,6 +62,16 @@ def main():
 
     # Now that we are ready, please begin the first procedure of the device
     print(f'{name}, please proceed to place your mouth between {prox_range[0]} to {prox_range[1]} inches away!')
+
+    # Check the range sensor, and see if testees mask is within range
+    within_distance = False
+
+    while within_distance is not True:
+        distance_in_mm = check_range(range_sensor, 10)
+        distance_in_inches = convert_mm_to_in(distance_in_mm)
+        within_distance = compare_range(prox_range, distance_in_inches)
+        
+
     print(f'{name}, please proceed to breathe into the device without your mask')
     mask_off = read_humidity(bme280, baseline_humidity)
     print(mask_off)
@@ -97,7 +106,23 @@ def main():
 
 
 # Function takes in specified range, and checks if device is acceptable distance away
-# def check_range(sensor):
+def compare_range(specified_range, current_distance):
+
+    print(f'Range: {current_distance}, ')
+
+    # If the current distance is between low and high end of specified range, return good. Otherwise, return False
+    if current_distance > specified_range[0] and current_distance < specified_range[1]:
+        print("Within acceptable range, please stay still!")
+        return True
+    else:
+        if current_distance < specified_range[0]:
+            print('Too close, move back!')
+            return False
+        
+        else:
+            print('Too far, move closer!')
+            return False
+
 
 
 
