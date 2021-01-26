@@ -7,6 +7,7 @@ import sys
 import termios
 import tty
 import os
+from time import sleep
 
 
 # Import all sensor/display packages
@@ -37,7 +38,7 @@ def main():
     else:
         print("File not found, creating one now!")
         fd = open('results.csv', 'w')
-        fd.write("Participant, room humidity, mask on measurement, mask off measurement\n")
+        fd.write("Participant Name, Room Humidity (%RH), Mask-On Humidity (%RH), Mask-Off Humidity\n")
         fd.flush()
         
     # Variables designated for creating the BME object, as well as reading in data from BME280
@@ -49,7 +50,7 @@ def main():
     temperature = bme280.temperature
 
     # Setup Display
-    # display = display_initialize(i2c)
+    display = display_initialize(i2c)
 
     # Setup TOF sensor
     range_sensor = tof_initialize(i2c)
@@ -65,17 +66,25 @@ def main():
 
     # Check the range sensor, and see if testees mask is within range
     within_distance = False
-
+    
     while within_distance is not True:
         distance_in_mm = check_range(range_sensor, 10)
         distance_in_inches = convert_mm_to_in(distance_in_mm)
+        write_to_display(display, round(distance_in_inches, 3))
         within_distance = compare_range(prox_range, distance_in_inches)
-        
-
+        sleep(0.05)
+    
+    # Clear display of range data
+    display_clear(display)
+    
+    # With testee in range, begin testing
     print(f'{name}, please proceed to breathe into the device without your mask')
     mask_off = read_humidity(bme280, baseline_humidity)
     print(mask_off)
     
+    # Write testee mask off report to display
+    write_to_display(display, round(mask_off, 2))
+
     # Check to calibrate device once more
     check_readiness(bme280)
 
@@ -84,6 +93,8 @@ def main():
     mask_on = read_humidity(bme280, baseline_humidity)
     print(mask_on)
 
+    # Write testee mask on report to display
+    write_to_display(display, round(mask_on, 2))
 
     # Take a direct ratio with mask on vs off
     on_vs_off = mask_on / mask_off
@@ -97,11 +108,13 @@ def main():
 
     # Report user mask effectivity to terminal
     print(f'\n\n{name}, your mask was approximately {mask_efficiency * 100}% effective')
-   
+    
+    # Report mask effectivity to display
+    write_to_display(display, round(mask_efficiency * 100, 2))
     prompt_writeup(baseline_humidity, mask_on, mask_off, mask_efficiency, name, fd, orig_settings)
     
     fd.close()
-
+    write_to_display(display, '1.14')
     exit()
 
 
@@ -148,7 +161,7 @@ def prompt_writeup(baseline_humidity, mask_on, mask_off, mask_efficiency, name, 
             termios.tcsetattr(sys.stdin, termios.TCSADRAIN, orig_settings)
             print(f'File for {name} has been saved.\n')
             # fd.write("Participant, room humidity, mask on measurement, mask off measurement\n")
-            fd.write(str(name) + ',' + str(baseline_humidity) + ',' + str(mask_on) + ',' + str(mask_off) + ',' + str(mask_efficiency * 100) + "%\n")
+            fd.write(str(name) + '%, ' + str(baseline_humidity) + ', ' + str(mask_on) + '%, ' + str(mask_off) + '%, ' + str(mask_efficiency * 100) + "%\n")
             return
 
         # If answer is no, close files and leave

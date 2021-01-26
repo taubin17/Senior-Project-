@@ -16,9 +16,14 @@ def display_initialize(i2c):
 def write_to_display(display, data):
 
     display.fill(0)
-    display.print(data)
+    display.print(str(data))
     
     return 
+
+def display_clear(display):
+    display.fill(0)
+    
+    return
 
 if __name__ == '__main__':
     main()
