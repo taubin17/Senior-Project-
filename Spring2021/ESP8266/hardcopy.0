@@ -1,0 +1,24 @@
+
+>>> import test2
+>>> test2.main()
+Running main script!
+49
+35 1 0
+Traceback (most recent call last):
+  File "<stdin>", line 1, in <module>
+  File "test2.py", line 11, in main
+  File "test2.py", line 67, in test_i2c
+TypeError: object with buffer protocol required
+>>>
+
+
+
+
+
+
+
+
+
+
+
+
