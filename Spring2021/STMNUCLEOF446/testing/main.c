@@ -15,6 +15,7 @@ static int write_reg(int busfd, short int addr, unsigned char buffer, int buffer
 void test_write(int busfd, short int addr, unsigned char buffer, int buffer_size);
 uint8_t single_range_measurement(int i2cbus);
 void initialize_vl6180x(int i2cbus);
+void VL6180X_Init(int i2cbus);
 
 int main(int argc, char *argv[]) 
 {
@@ -46,11 +47,11 @@ int main(int argc, char *argv[])
 
 	// Initialize Sensors!
 	
-	//initialize_vl6180x(fd);
+	initialize_vl6180x(fd);
 	//test_write(fd, 0x000, 0xB4, 1);	
 	id = read_reg(fd, 0x000, buffer, 1);
 	printf("ID: %d\n", id);
-/*
+	VL6180X_Init(fd);
 	sleep(3);
 	
 
@@ -61,7 +62,7 @@ int main(int argc, char *argv[])
 		sleep(1);
 	}	
 	close(fd);
-*/	
+	
 	return 0;
 	// Write private registers given in ST datasheet
 	//configure_private_reg(fd)
@@ -92,9 +93,9 @@ static int read_reg(int busfd, short int addr, unsigned char buffer, int buffer_
 	reg_buf[0] = (addr >> 0) & 0xFF;
 	reg_buf[1] = (addr >> 8) & 0xFF;
 
-	printf("%02x, %02x\n", reg_buf[0], reg_buf[1]);
+	//printf("%02x, %02x\n", reg_buf[0], reg_buf[1]);
 
-	/*
+	
 	result = write(busfd, reg_buf, 2);
 
 	if (result < 0) {
@@ -104,7 +105,7 @@ static int read_reg(int busfd, short int addr, unsigned char buffer, int buffer_
 
 	//printf("Wrote to device at addr 0x%03x \n", addr);
 	read(busfd, data_read, buffer_size);
-	*/
+	
 	return data_read[0];
 }
 
@@ -113,12 +114,12 @@ static int write_reg(int busfd, short int addr, unsigned char buffer, int buffer
 	unsigned char reg_buf[3];
 	int result;
 
-	reg_buf[0] = (addr >> 0) & 0xFF;
-	reg_buf[1] = (addr >> 8) & 0xFF;
+	reg_buf[0] = (addr >> 8) & 0xFF;
+	reg_buf[1] = (addr >> 0) & 0xFF;
 	reg_buf[2] = buffer;
 	
-	printf("%02x, %02x, %02x \n", reg_buf[0], reg_buf[1], reg_buf[2]);
-/*
+	//printf("%02x, %02x, %02x \n", reg_buf[0], reg_buf[1], reg_buf[2]);
+
 	result = write(busfd, reg_buf, 3);
 
 	if (result < 0) {
@@ -127,7 +128,7 @@ static int write_reg(int busfd, short int addr, unsigned char buffer, int buffer
 	}
 
 	//printf("Wrote to device at addr 0x%03x \n", addr);
-	*/
+	
 	return result;
 }
 
@@ -136,21 +137,39 @@ uint8_t single_range_measurement(int i2cbus)
 {
 	unsigned char buffer;
 	int result;
-
-	write_reg(i2cbus, 0x015, 0x07, 1);
+	uint8_t range;
+	char range_status;
 	
-	write_reg(i2cbus, 0x018, 0x03, 1);
+	//write_reg(i2cbus, 0x015, 0x07, 1);
+		
+	write_reg(i2cbus, 0x018, 0x01, 1);
+	
+	range_status = read_reg(i2cbus, 0x04f, buffer, 1);
+	range_status = range_status & 0x07;
 
-	while (!(read_reg(i2cbus, 0x04f, buffer, 1) & 0x07)) {
-		result = read_reg(i2cbus, 0x04f, buffer, 1);
-		printf("%04x\n", result);
+	while (range_status != 0x04) {
+		range_status = read_reg(i2cbus, 0x04f, buffer, 1);
+		range_status = range_status & 0x07;
 		sleep(1);
 	}
-	uint8_t range = read_reg(i2cbus, 0x062, buffer, 1);
+	range = read_reg(i2cbus, 0x062, buffer, 1);
 
 	write_reg(i2cbus, 0x015, 0x07, 1);
-
 	return range;
+
+
+}
+
+void VL6180X_Init(int i2cbus) {
+
+	char reset;
+
+	reset = read_reg(i2cbus, 0x016, 0x00, 1);
+	if (reset == 1) {
+		write_reg(i2cbus, 0x016, 0x00, 1);
+	}
+
+	return;
 
 
 }
@@ -189,12 +208,16 @@ void initialize_vl6180x(int i2cbus)
 	write_reg(i2cbus, 0x01a7, 0x1f, 1);
 	write_reg(i2cbus, 0x0030, 0x00, 1);
 
+	
 	write_reg(i2cbus, 0x0011, 0x10, 1);
 	write_reg(i2cbus, 0x010a, 0x30, 1);
 	write_reg(i2cbus, 0x003f, 0x46, 1);
 	write_reg(i2cbus, 0x0031, 0xff, 1);
 	write_reg(i2cbus, 0x0040, 0x63, 1);
 	write_reg(i2cbus, 0x002e, 0x01, 1);	
+	write_reg(i2cbus, 0x001b, 0x09, 1);
+	write_reg(i2cbus, 0x003e, 0x31, 1);
+	write_reg(i2cbus, 0x0014, 0x24, 1);
 
 	return;
 
