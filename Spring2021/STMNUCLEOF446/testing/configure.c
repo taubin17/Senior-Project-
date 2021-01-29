@@ -22,6 +22,9 @@ int main(int argc, char *argv[])
 	int fd;
 	int result;
 	int id;
+
+	unsigned char gpio_reg;
+
 	// Open I2C bus
 	char i2c_bus[] = "/dev/i2c-1";
 
@@ -29,6 +32,7 @@ int main(int argc, char *argv[])
 	//unsigned char *buffer;
 
 	unsigned char buffer;
+	unsigned char reset_ready;
 
 	fd = open(i2c_bus, O_RDWR);
 	
@@ -45,29 +49,21 @@ int main(int argc, char *argv[])
 		return -1;
 	}
 
+	/*
 	// Initialize Sensors!
-	
+	reset_ready = read_reg(fd, 0x016, buffer, 1);
+	//write_reg(fd, 0x010, 0b00100000, 1);
+	gpio_reg = read_reg(fd, 0x010, buffer, 1);
+	printf("%x, %x\n", reset_ready, gpio_reg);
+	sleep(1);
+	write_reg(fd, 0x016, 0x01, 1);
+	sleep(1);
+	reset_ready = read_reg(fd, 0x016, buffer, 1);
+	gpio_reg = read_reg(fd, 0x010, 0x00, 1);
+	printf("%x, %x\n", reset_ready, gpio_reg);
+	*/
 	initialize_vl6180x(fd);
-	
-	VL6180X_Init(fd);
-
-	test_write(fd, 0x018, 0x01, 1);	
-	id = read_reg(fd, 0x000, buffer, 1);
-	printf("ID: %x\n", id);
-	sleep(3);
-	
-	for (int i = 0; i < 100; i++) {
-	
-		range = single_range_measurement(fd);
-		printf("Range: %d\n", range);
-		sleep(1);
-	}
-		
-	close(fd);
-	
-	return 0;
-	// Write private registers given in ST datasheet
-	//configure_private_reg(fd)
+	//test_write(fd, 0x000, 0xB4, 1);	
 }
 
 void test_write(int busfd, short int addr, unsigned char buffer, int buffer_size) {
@@ -75,13 +71,13 @@ void test_write(int busfd, short int addr, unsigned char buffer, int buffer_size
 	unsigned char result;
 
 	result = read_reg(busfd, addr, buffer, 1);
-	printf("Addr: 0x%04x, Before: 0x%x\n", addr, result);
+	printf("Before: %x\n", result);
 	
 	sleep(1);
 
 	write_reg(busfd, addr, buffer, 1);
 	result = read_reg(busfd, addr, buffer, 1);
-	printf("Addr: 0x%04x, After: 0x%x\n", addr, result);
+	printf("After: %x\n", result);
 
 	return;
 }
@@ -92,8 +88,8 @@ static int read_reg(int busfd, short int addr, unsigned char buffer, int buffer_
 	int result;
 	unsigned char data_read[1];
 
-	reg_buf[0] = (addr >> 8) & 0xFF;
-	reg_buf[1] = (addr >> 0) & 0xFF;
+	reg_buf[0] = (addr >> 0) & 0xFF;
+	reg_buf[1] = (addr >> 8) & 0xFF;
 
 	//printf("%02x, %02x\n", reg_buf[0], reg_buf[1]);
 
@@ -119,8 +115,6 @@ static int write_reg(int busfd, short int addr, unsigned char buffer, int buffer
 	reg_buf[0] = (addr >> 8) & 0xFF;
 	reg_buf[1] = (addr >> 0) & 0xFF;
 	reg_buf[2] = buffer;
-
-	printf("Buffer: %x\n", buffer);
 	
 	//printf("%02x, %02x, %02x \n", reg_buf[0], reg_buf[1], reg_buf[2]);
 
@@ -132,7 +126,7 @@ static int write_reg(int busfd, short int addr, unsigned char buffer, int buffer
 	}
 
 	//printf("Wrote to device at addr 0x%03x \n", addr);
-	printf("Bytes Written: %d\n", result);	
+	
 	return result;
 }
 
@@ -181,13 +175,13 @@ void initialize_vl6180x(int i2cbus)
 {
 
 	//Initialize private registers as instructed by ST datasheet
-	test_write(i2cbus, 0x0207, 0x01, 1);
-	test_write(i2cbus, 0x0208, 0x01, 1);
-	test_write(i2cbus, 0x0096, 0x00, 1);
-	test_write(i2cbus, 0x0097, 0xfd, 1);
-	test_write(i2cbus, 0x00e3, 0x00, 1);
-	test_write(i2cbus, 0x00e4, 0x04, 1);
-	test_write(i2cbus, 0x00e5, 0x02, 1);
+	write_reg(i2cbus, 0x0207, 0x01, 1);
+	write_reg(i2cbus, 0x0208, 0x01, 1);
+	write_reg(i2cbus, 0x0096, 0x00, 1);
+	write_reg(i2cbus, 0x0097, 0xfd, 1);
+	write_reg(i2cbus, 0x00e3, 0x00, 1);
+	write_reg(i2cbus, 0x00e4, 0x04, 1);
+	write_reg(i2cbus, 0x00e5, 0x02, 1);
 	write_reg(i2cbus, 0x00e6, 0x01, 1);
 	write_reg(i2cbus, 0x00e7, 0x03, 1);
 	write_reg(i2cbus, 0x00f5, 0x02, 1);
@@ -222,6 +216,8 @@ void initialize_vl6180x(int i2cbus)
 	write_reg(i2cbus, 0x001b, 0x09, 1);
 	write_reg(i2cbus, 0x003e, 0x31, 1);
 	write_reg(i2cbus, 0x0014, 0x24, 1);
+
+	write_reg(i2cbus, 0x016, 0x00, 1);
 
 	return;
 
