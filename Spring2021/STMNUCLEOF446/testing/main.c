@@ -10,7 +10,7 @@
 #include <i2c/smbus.h>
 #include <linux/i2c.h>
 
-static int read_reg(int busfd, short int addr, unsigned char buffer, int buffer_size);
+static int read_reg(int busfd, short int addr, int buffer_size);
 static int write_reg(int busfd, short int addr, unsigned char buffer, int buffer_size);
 void test_write(int busfd, short int addr, unsigned char buffer, int buffer_size);
 uint8_t single_range_measurement(int i2cbus);
@@ -45,97 +45,87 @@ int main(int argc, char *argv[])
 		return -1;
 	}
 
-	// Initialize Sensors!
-	
+	// Initialize Sensors
 	initialize_vl6180x(fd);
-	
 	VL6180X_Init(fd);
 
-	test_write(fd, 0x018, 0x01, 1);	
-	id = read_reg(fd, 0x000, buffer, 1);
-	printf("ID: %x\n", id);
-	sleep(3);
-	
+	// Poll sensor until range sensor detects between range_low and range_high (0.5 to 4 inches)	
 	for (int i = 0; i < 100; i++) {
-	
 		range = single_range_measurement(fd);
 		printf("Range: %d\n", range);
-		sleep(1);
+		usleep(50000);
 	}
 		
 	close(fd);
 	
 	return 0;
-	// Write private registers given in ST datasheet
-	//configure_private_reg(fd)
 }
 
 void test_write(int busfd, short int addr, unsigned char buffer, int buffer_size) {
 
 	unsigned char result;
 
-	result = read_reg(busfd, addr, buffer, 1);
+	// Read original value of register
+	result = read_reg(busfd, addr, 1);
 	printf("Addr: 0x%04x, Before: 0x%x\n", addr, result);
 	
 	sleep(1);
 
+	// Write new value to that register
 	write_reg(busfd, addr, buffer, 1);
-	result = read_reg(busfd, addr, buffer, 1);
+
+	// Check if that register has changed
+	result = read_reg(busfd, addr, 1);
 	printf("Addr: 0x%04x, After: 0x%x\n", addr, result);
 
 	return;
 }
 
-static int read_reg(int busfd, short int addr, unsigned char buffer, int buffer_size)
+static int read_reg(int busfd, short int addr, int buffer_size)
 {
 	unsigned char reg_buf[2];
-	int result;
+	int bytes_written;
 	unsigned char data_read[1];
-
+	
+	// Reg_buf[0] represents upper 8 bit register, reg_buf[1] represents lower 8 bit address.
 	reg_buf[0] = (addr >> 8) & 0xFF;
 	reg_buf[1] = (addr >> 0) & 0xFF;
-
-	//printf("%02x, %02x\n", reg_buf[0], reg_buf[1]);
-
 	
-	result = write(busfd, reg_buf, 2);
+	// Tell VL6180X we want address held in reg_buf[0] and [1]
+	bytes_written = write(busfd, reg_buf, 2);
 
-	if (result < 0) {
+	// If address cannot reach device, return failure
+	if (bytes_written < 0) {
 		printf("Failed to write to register!\n");
-		return result;
+		return bytes_written;
 	}
 
-	//printf("Wrote to device at addr 0x%03x \n", addr);
+	// Read back register data
 	read(busfd, data_read, buffer_size);
 	
 	return data_read[0];
 }
 
-static int write_reg(int busfd, short int addr, unsigned char buffer, int buffer_size)
+static int write_reg(int busfd, short int addr, unsigned char data, int buffer_size)
 {
 	unsigned char reg_buf[3];
-	int result;
-
+	int bytes_written;
+	
+	// Reg_buf[0] represents upper 8 bit address, reg_buf[1] represents low 8 bits. Reg_buf[2] represents data to write
 	reg_buf[0] = (addr >> 8) & 0xFF;
 	reg_buf[1] = (addr >> 0) & 0xFF;
-	reg_buf[2] = buffer;
+	reg_buf[2] = data;
 
-	printf("Buffer: %x\n", buffer);
-	
-	//printf("%02x, %02x, %02x \n", reg_buf[0], reg_buf[1], reg_buf[2]);
 
-	result = write(busfd, reg_buf, 3);
+	bytes_written = write(busfd, reg_buf, 3);
 
-	if (result < 0) {
+	if (bytes_written < 0) {
 		printf("Failed to write to register!\n");
-		return result;
+		return bytes_written;
 	}
 
-	//printf("Wrote to device at addr 0x%03x \n", addr);
-	printf("Bytes Written: %d\n", result);	
-	return result;
+	return bytes_written;
 }
-
 
 uint8_t single_range_measurement(int i2cbus)
 {
@@ -144,31 +134,39 @@ uint8_t single_range_measurement(int i2cbus)
 	uint8_t range;
 	char range_status;
 	
-	//write_reg(i2cbus, 0x015, 0x07, 1);
-		
+	// Start single range measurement	
 	write_reg(i2cbus, 0x018, 0x01, 1);
 	
-	range_status = read_reg(i2cbus, 0x04f, buffer, 1);
+	// Read back range ready register. See if measurement is done
+	range_status = read_reg(i2cbus, 0x04f, 1);
 	range_status = range_status & 0x07;
 
+	// While range ready register is not ready, keep checking
 	while (range_status != 0x04) {
-		range_status = read_reg(i2cbus, 0x04f, buffer, 1);
+		range_status = read_reg(i2cbus, 0x04f, 1);
 		range_status = range_status & 0x07;
 		sleep(1);
 	}
-	range = read_reg(i2cbus, 0x062, buffer, 1);
 
+	// Range register can now be read. Get range reading!
+	range = read_reg(i2cbus, 0x062, 1);
+
+	// Write to range reset register to get ready for new measurement
 	write_reg(i2cbus, 0x015, 0x07, 1);
 	return range;
 
 
 }
 
-void VL6180X_Init(int i2cbus) {
+void VL6180X_Init(int i2cbus) 
+{
 
 	char reset;
-
-	reset = read_reg(i2cbus, 0x016, 0x00, 1);
+	
+	// Checks if reset bit is high. Necessary for initialize_vl6180x, cannot write private registers when reset flag is high
+	reset = read_reg(i2cbus, 0x016, 1);
+	
+	// If reset flag is high on startup, turn it off
 	if (reset == 1) {
 		write_reg(i2cbus, 0x016, 0x00, 1);
 	}
@@ -177,17 +175,18 @@ void VL6180X_Init(int i2cbus) {
 
 
 }
+
 void initialize_vl6180x(int i2cbus) 
 {
 
-	//Initialize private registers as instructed by ST datasheet
-	test_write(i2cbus, 0x0207, 0x01, 1);
-	test_write(i2cbus, 0x0208, 0x01, 1);
-	test_write(i2cbus, 0x0096, 0x00, 1);
-	test_write(i2cbus, 0x0097, 0xfd, 1);
-	test_write(i2cbus, 0x00e3, 0x00, 1);
-	test_write(i2cbus, 0x00e4, 0x04, 1);
-	test_write(i2cbus, 0x00e5, 0x02, 1);
+	//Initialize private registers as instructed by ST datasheet. Cannot find any information on why these are set, but device does not work properly without setting them
+	write_reg(i2cbus, 0x0207, 0x01, 1);
+	write_reg(i2cbus, 0x0208, 0x01, 1);
+	write_reg(i2cbus, 0x0096, 0x00, 1);
+	write_reg(i2cbus, 0x0097, 0xfd, 1);
+	write_reg(i2cbus, 0x00e3, 0x00, 1);
+	write_reg(i2cbus, 0x00e4, 0x04, 1);
+	write_reg(i2cbus, 0x00e5, 0x02, 1);
 	write_reg(i2cbus, 0x00e6, 0x01, 1);
 	write_reg(i2cbus, 0x00e7, 0x03, 1);
 	write_reg(i2cbus, 0x00f5, 0x02, 1);
@@ -213,34 +212,16 @@ void initialize_vl6180x(int i2cbus)
 	write_reg(i2cbus, 0x0030, 0x00, 1);
 
 	
-	write_reg(i2cbus, 0x0011, 0x10, 1);
-	write_reg(i2cbus, 0x010a, 0x30, 1);
-	write_reg(i2cbus, 0x003f, 0x46, 1);
-	write_reg(i2cbus, 0x0031, 0xff, 1);
-	write_reg(i2cbus, 0x0040, 0x63, 1);
-	write_reg(i2cbus, 0x002e, 0x01, 1);	
-	write_reg(i2cbus, 0x001b, 0x09, 1);
-	write_reg(i2cbus, 0x003e, 0x31, 1);
-	write_reg(i2cbus, 0x0014, 0x24, 1);
+	write_reg(i2cbus, 0x0011, 0x10, 1); // Enables polling for "New Sample Ready" condition. Useful for interrupts later
+	write_reg(i2cbus, 0x010a, 0x30, 1); // Set averaging period to ST community recommendation. Best combination of sample time/noise reduction
+	write_reg(i2cbus, 0x003f, 0x46, 1); // Sets light and dark gain. Useful if light sensor becomes necessary
+	write_reg(i2cbus, 0x0031, 0xff, 1); // Sets number of measurements before auto calibration to half max. Best combination of accuracy and up time
+	write_reg(i2cbus, 0x0040, 0x63, 1); // ALS integration time to 100ms
+	write_reg(i2cbus, 0x002e, 0x01, 1); // Perform temperature calibration. Very useful for temperate climates	
+	write_reg(i2cbus, 0x001b, 0x09, 1); // Set default ranging inter-measurement period to 100 ms. Helps reduce noise.
+	write_reg(i2cbus, 0x003e, 0x31, 1); // Set default ALS inter measurement period to 500 ms. ALS noise potentially reduced
+	write_reg(i2cbus, 0x0014, 0x24, 1); // Configured interrupt on "New Sample Ready" condition. Useful for interrupts later
 
 	return;
 
 }
-
-/*
-void configure_private_reg(int i2c_bus) {
-	
-	int result;
-
-	result = vl6180x_write_reg(, data)
-
-	return
-
-	}
-	
-void vl6180x_write_reg(uint16_t addr, uint8_t data) 
-{
-	uint8_t buffer[] = {(addr >> 8), addr & 0xff, 
-	}
-*/
-
