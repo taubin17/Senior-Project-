@@ -2,3 +2,4 @@
 
 gcc main.c -o main
 gcc configure.c -o configure
+gcc bme.c -o bme
