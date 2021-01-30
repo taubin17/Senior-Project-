@@ -49,8 +49,10 @@ int main(int argc, char *argv[])
 	initialize_vl6180x(fd);
 	VL6180X_Init(fd);
 
+	printf("Done initializing!\n");
+
 	// Poll sensor until range sensor detects between range_low and range_high (0.5 to 4 inches)	
-	for (int i = 0; i < 100; i++) {
+	while(1){
 		range = single_range_measurement(fd);
 		printf("Range: %d\n", range);
 		usleep(50000);
@@ -140,12 +142,11 @@ uint8_t single_range_measurement(int i2cbus)
 	// Read back range ready register. See if measurement is done
 	range_status = read_reg(i2cbus, 0x04f, 1);
 	range_status = range_status & 0x07;
-
+	
 	// While range ready register is not ready, keep checking
 	while (range_status != 0x04) {
 		range_status = read_reg(i2cbus, 0x04f, 1);
 		range_status = range_status & 0x07;
-		sleep(1);
 	}
 
 	// Range register can now be read. Get range reading!
