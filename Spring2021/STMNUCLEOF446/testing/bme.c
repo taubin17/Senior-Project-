@@ -21,7 +21,7 @@ uint8_t * burst_read(int busfd, uint8_t addr, uint8_t number_of_bytes);
 float read_humidity(int busfd);
 int read_data(int busfd, struct bme280_calib_data *calib);
 int32_t comp_temp(uint32_t temp_msb, uint32_t temp_lsb, uint32_t temp_xlsb, struct bme280_calib_data *calib);
-
+uint32_t comp_humidity(uint32_t humidity_msb, uint32_t humidity_lsb, struct bme280_calib_data *calib);
 
 int main(int argc, char *argv[])
 {
@@ -125,22 +125,6 @@ uint8_t * burst_read(int busfd, uint8_t addr, uint8_t bytes_to_read)
 	uint8_t bytes_written;
 	uint8_t *data_read = malloc(sizeof (uint8_t) * bytes_to_read);
 
-	/*
-	//Pressure Variables. Registers 0, 1, and 2 hold pressure MSB, LSB, and XLSB. Will be used in BOSCH compensation API to readout data
-	uint32_t p_data_xlsb;
-	uint32_t p_data_lsb;
-	uint32_t p_data_msb;
-
-	//Temperature Variables.
-	uint32_t t_data_xlsb;
-	uint32_t t_data_lsb;
-	uint32_t t_data_msb;
-
-	//Humidity Variables
-	uint32_t h_data_lsb;
-	uint32_t h_data_msb;
-	*/
-
 	reg_buf[0] = addr;
 
 	bytes_written = write(busfd, reg_buf, 1);
@@ -151,24 +135,6 @@ uint8_t * burst_read(int busfd, uint8_t addr, uint8_t bytes_to_read)
 	}
 
 	read(busfd, data_read, bytes_to_read);
-
-	/*
-	p_data_msb = (uint32_t)data_read[0] << 12;
-	p_data_lsb = (uint32_t)data_read[1] << 4;
-	p_data_xlsb = (uint32_t)data_read[2] >> 4;
-
-	t_data_msb = (uint32_t)data_read[3] << 12;
-	t_data_lsb = (uint32_t)data_read[4] << 4;
-	t_data_xlsb = (uint32_t)data_read[5] >> 4;
-
-	h_data_msb = (uint32_t)data_read[6] << 8;
-	h_data_lsb = (uint32_t)data_read[7];
-
-	// Now use BOSCH compensation api to return as 32 bit floats
-	comp_pressure(p_data_msb, p_data_lsb, p_data_xlsb);
-	comp_temp(t_data_msb, t_data_lsb, t_data_xlsb);
-	comp_humidity(h_data_msb, h_data_lsb);
-	*/
 
 	return data_read;
 }
@@ -221,7 +187,7 @@ static void parse_calib_data(int busfd, struct bme280_calib_data *calib)
 
 }
 /*
-uint32_t comp_pressure(uint32_t p_msb, uint32_t p_lsb, uint32_t p_xlsb) 
+uint32_t comp_pressure(uint32_t p_msb, uint32_t p_lsb, uint32_t p_xlsb, struct bme280_calib_data *calib) 
 {
 	double var1;
 	double var2;
@@ -257,7 +223,7 @@ int32_t comp_temp(uint32_t t_msb, uint32_t t_lsb, uint32_t t_xlsb, struct bme280
 	calib->t_fine = (var1 + var2);
 	temperature = (calib->t_fine * 5 + 128) / 256;
 
-	printf("Non corrected temp: %d ----- ", temperature);
+	//printf("Non corrected temp: %d ----- ", temperature);
 
 	if (temperature > temperature_max) {
 		
@@ -274,15 +240,50 @@ int32_t comp_temp(uint32_t t_msb, uint32_t t_lsb, uint32_t t_xlsb, struct bme280
 	return temperature;
 
 }
-/*
-uint32_t comp_humidity(uint32_t h_msb, uint32_t h_lsb)
+
+uint32_t comp_humidity(uint32_t h_msb, uint32_t h_lsb, struct bme280_calib_data *calib)
 {
 
+	int32_t var1;
+	int32_t var2;
+	int32_t var3;
+	int32_t var4;
+	int32_t var5;
 
+	uint32_t uncomp_humidity = h_msb | h_lsb;
 
+	uint32_t humidity;
+	uint32_t humidity_max = 102400;
+
+	var1 = calib->t_fine - ((int32_t)76800);
+	var2 = (int32_t)(uncomp_humidity * 16384);
+	var3 = (int32_t)(((int32_t)calib->dig_h4) * 1048576);
+	var4 = ((int32_t)calib->dig_h5) * var1;
+	var5 = (((var2 - var3) - var4) + (int32_t)16384) / 32768;
+	var2 = (var1 * ((int32_t)calib->dig_h6)) / 1024;
+	var3 = (var1 * ((int32_t)calib->dig_h3)) / 2048;
+	var4 = ((var2 * (var3 + (int32_t)32768)) / 1024) + (int32_t)2097152;
+	var2 = ((var4 * ((int32_t)calib->dig_h2)) + 8192) / 16384;
+	var3 = var5 * var2;
+
+	var4 = ((var3 / 32768) * (var3 / 32768)) / 128;
+	var5 = var3 - ((var4 * ((int32_t)calib->dig_h1)) / 16);
+	var5 = (var5 < 0 ? 0 : var5);
+	var5 = (var5 > 419430400 ? 419430400 : var5);
+	
+	humidity = (uint32_t) (var5 / 4096);
+
+	//printf("Humidity: %d -----", humidity);
+
+	if (humidity > humidity_max) {
+
+		humidity = humidity_max;
+	
+	}
+
+	return humidity;
 
 }
-*/
 
 void bme280_init(int busfd)
 {
@@ -293,41 +294,27 @@ void bme280_init(int busfd)
 	printf("Setup complete!");
 	return;
 }
-/*
-float read_humidity(int busfd) 
-{
-	uint8_t raw_humidity[2];
-	uint16_t int_humidity;
-
-	raw_humidity = burst_read(busfd, 0xFD, 2);
-
-	int_humidity = (raw_humidity[0] << 8) + raw_humidity[0];
-
-
-
-}
-*/
 
 int read_data(int busfd, struct bme280_calib_data *calib)
 {
-	//int8_t all_sensor_data[8];
 	uint8_t *sensor_data;
 	
-	uint8_t humidity_MSB;
-	uint8_t humidity_LSB;
+	uint32_t humidity_msb;
+	uint32_t humidity_lsb;
 	uint32_t temp_msb;
 	uint32_t temp_lsb;
 	uint32_t temp_xlsb;
-	uint8_t press_msb;
-	uint8_t press_lsb;
-	uint8_t press_xlsb;
+	uint32_t press_msb;
+	uint32_t press_lsb;
+	uint32_t press_xlsb;
 
 	int32_t temperature;
+	uint32_t pressure;
+	uint32_t humidity;
 
 	float new_temp;
+	float new_humidity;
 
-	int32_t pressure;
-	int32_t humidity;
 
 	sensor_data = burst_read(busfd, 0xF7, 8);
 
@@ -335,18 +322,25 @@ int read_data(int busfd, struct bme280_calib_data *calib)
 	temp_lsb = sensor_data[4] << 4;
 	temp_xlsb = sensor_data[5] >> 4;
 
+	/*
+	press_msb = sensor_data[0];
+	press_lsb = sensor_data[1];
+	press_xlsb = sensor_data[2];
+	*/
+
+	humidity_msb = sensor_data[6] << 8;
+	humidity_lsb = sensor_data[7];
+
 	temperature = comp_temp(temp_msb, temp_lsb, temp_xlsb, calib);
-	
-	temperature = (int16_t)(temperature);
+	humidity = comp_humidity(humidity_msb, humidity_lsb, calib);
 
 	new_temp = (float)temperature / 100;
 
-	printf("Temperature: %3.2f \n", new_temp);
+	new_humidity = (float)humidity / 1000;
+
+	printf("Temperature: %3.2f ----- Humidity: %3.2f \n", new_temp, new_humidity);
 
 	return 0;
-	//humidity_MSB = all_sensor_data[6];
-	//humidity_LSB = all_sensor_data[7];
-
 
 }
 
