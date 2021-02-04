@@ -59,7 +59,7 @@ int main(int argc, char *argv[])
 		
 	printf("Device ID: %x\n", ID);
 
-	for (int i = 0; i < 1000; i++) {
+	while (1) {
 
 		//printf("Status: %x\n", read_reg(fd, 0xF3));
 		read_data(fd, &calib);
@@ -72,6 +72,7 @@ int main(int argc, char *argv[])
 
 }
 
+// Write to one 8 bit register. Useful for setting oversampling setttings
 int write_reg(int busfd, uint8_t addr, uint8_t data)
 {
 
@@ -93,6 +94,7 @@ int write_reg(int busfd, uint8_t addr, uint8_t data)
 
 }
 
+// Function reads one singular 8 bit register. Useful for getting ID of device
 uint8_t read_reg(int busfd, uint8_t addr)
 {
 	// BME280 Datasheet states to write device address followed by 0 bit high (0xEE), followed by register address with 0 bit 1 (0xEF). Device then returns 
@@ -119,16 +121,21 @@ uint8_t read_reg(int busfd, uint8_t addr)
 
 }
 
+// Function reads bytes from addr to addr + bytes_to_read and returns data fro registers
 uint8_t * burst_read(int busfd, uint8_t addr, uint8_t bytes_to_read) 
 {
+	// Reg buf holds address of where to begin reading
 	unsigned char reg_buf[1];
 	uint8_t bytes_written;
+
+	// Buffer to read in byte data
 	uint8_t *data_read = malloc(sizeof (uint8_t) * bytes_to_read);
 
 	reg_buf[0] = addr;
 
 	bytes_written = write(busfd, reg_buf, 1);
 
+	// If write failed
 	if (bytes_written < 0) {
 		printf("Error writting register address!\n");
 		exit(1);
@@ -139,6 +146,7 @@ uint8_t * burst_read(int busfd, uint8_t addr, uint8_t bytes_to_read)
 	return data_read;
 }
 
+// Function uses BOSCH api as basis. Function reads factory set calibration registers
 static void parse_calib_data(int busfd, struct bme280_calib_data *calib)
 {
 	// Get temp and pressure calibration data
@@ -178,6 +186,8 @@ static void parse_calib_data(int busfd, struct bme280_calib_data *calib)
 	calib->dig_h5 = dig_h5_msb | dig_h5_lsb;
 	calib->dig_h6 = (int8_t)readout[6];
 
+	// Clear heap of readout, we have data we need
+	free(readout);
 
 	return;	
 		
@@ -205,6 +215,8 @@ uint32_t comp_pressure(uint32_t p_msb, uint32_t p_lsb, uint32_t p_xlsb, struct b
 }
 
 */
+
+// Function taken from BOSCH VL6180X Driver. 
 int32_t comp_temp(uint32_t t_msb, uint32_t t_lsb, uint32_t t_xlsb, struct bme280_calib_data *calib)
 {
 	int32_t var1;
