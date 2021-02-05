@@ -38,7 +38,7 @@ def main():
     else:
         print("File not found, creating one now!")
         fd = open('results.csv', 'w')
-        fd.write("Participant Name, Room Humidity (%RH), Mask-On Humidity (%RH), Mask-Off Humidity\n")
+        fd.write("Participant Name, Room Humidity (%RH), Mask-On Humidity (%RH), Mask-Off Humidity, Mask-On VS Mask-Off Efficiency (%)\n")
         fd.flush()
         
     # Variables designated for creating the BME object, as well as reading in data from BME280
@@ -54,7 +54,6 @@ def main():
 
     # Setup TOF sensor
     range_sensor = tof_initialize(i2c)
-    
     # Get users name
     name = input('Please enter the name of the current test subject\n')
 
@@ -101,7 +100,8 @@ def main():
 
     # Get a scaled ratio between 1 and 0 of mask effectivity
     mask_efficiency = 1 - on_vs_off
-
+    
+    # If device reports mask has negative effect, report bad measurement and try again
     if mask_efficiency < 0:
         print("Error reading subjects mask effectivity, please try again!\n")
         exit()
@@ -113,10 +113,10 @@ def main():
     write_to_display(display, round(mask_efficiency * 100, 2))
     prompt_writeup(baseline_humidity, mask_on, mask_off, mask_efficiency, name, fd, orig_settings)
     
+    display_clear(display)
     fd.close()
-    write_to_display(display, '1.14')
-    exit()
-
+    
+    return
 
 # Function takes in specified range, and checks if device is acceptable distance away
 def compare_range(specified_range, current_distance):
@@ -161,7 +161,7 @@ def prompt_writeup(baseline_humidity, mask_on, mask_off, mask_efficiency, name, 
             termios.tcsetattr(sys.stdin, termios.TCSADRAIN, orig_settings)
             print(f'File for {name} has been saved.\n')
             # fd.write("Participant, room humidity, mask on measurement, mask off measurement\n")
-            fd.write(str(name) + '%, ' + str(baseline_humidity) + ', ' + str(mask_on) + '%, ' + str(mask_off) + '%, ' + str(mask_efficiency * 100) + "%\n")
+            fd.write(str(name) + ', ' + str(baseline_humidity) + '%, ' + str(mask_on) + '%, ' + str(mask_off) + '%, ' + str(mask_efficiency * 100) + "%\n")
             return
 
         # If answer is no, close files and leave
@@ -172,19 +172,25 @@ def prompt_writeup(baseline_humidity, mask_on, mask_off, mask_efficiency, name, 
 
 def check_readiness(bme):
     
+    # Variable to define maximum variance between two measurements
     within_tolerance = 1
     
+    # Empty variable to hold previous temperature
     past_temp = 0
     
+
+    # For each calibration measurement
     for x in range(calibration_measurements):
         
         current_temp = bme.temperature
         
+        # Check if the current and previous measurement are within tolerance. If so, increment by 1
         if abs(past_temp - current_temp) < 1:
             within_tolerance += 1
         
         past_temp = current_temp
    
+    # If all measurements for one cycle were within calibration, report device is calibrated and ready to measure. Otherwise, try to calibrate again
     if within_tolerance == calibration_measurements:
         print('Device ready, begin sample')
         return 
@@ -195,8 +201,7 @@ def check_readiness(bme):
     
 def read_humidity(bme280, baseline_humidity):
     
-    humidity_flag = 0
-    
+    # Create empty list to hold measured humidity readings. This is useful for we can report the maximum reading as worst case for mask on and mask off 
     humidities = [0]
 
     print('Upon countdown hitting 0, please breathe into device\n')
@@ -204,7 +209,9 @@ def read_humidity(bme280, baseline_humidity):
     for seconds in range(3):
         print(3-seconds)
         sleep(1)
+    
     print('0')
+
     while len(humidities) < 100:
         humidity = bme280.humidity - baseline_humidity
         temperature = bme280.temperature
