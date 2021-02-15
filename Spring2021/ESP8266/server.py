@@ -17,3 +17,11 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             print("Waiting for message!\n")
             data = conn.recv(1024)
             conn.sendall(data)
+
+            str_data = data.decode('utf-8')
+
+            if str_data == 'bye':
+                print("Exiting")
+                s.shutdown(socket.SHUT_RDWR)
+                s.close()
+                exit()
