@@ -3,9 +3,10 @@ Senior Project GitHub Repo.
 Current Hardware Configuration:
 
 	Raspberry Pi 4B
+	STM NUCLEO F446RE
 	BME280 RH/T/P sensor
+	ESP8266 Huzzah Adafruit Breakout
 	VL6180X (Replaced VCNL4010)
-	HT16K33 4x7 Segment Display
 
 Future Project Hardware support (Subject to change):
 	
@@ -13,6 +14,7 @@ Future Project Hardware support (Subject to change):
 	ESP8266
 	BME280
 	VL6180X (Replaced VCNL4010)
+	(Possibly) HT16K33
 
 Keynotes:
 
