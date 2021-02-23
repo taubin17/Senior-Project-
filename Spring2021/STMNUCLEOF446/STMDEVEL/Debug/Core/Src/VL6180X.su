@@ -1,0 +1,5 @@
+VL6180X.c:12:6:VL6180X_test_write	72	static
+VL6180X.c:31:9:VL6180X_single_range_measurement	16	static
+VL6180X.c:55:9:VL6180X_read_reg	32	static
+VL6180X.c:85:6:VL6180X_write_reg	32	static
+VL6180X.c:106:6:VL6180X_init	16	static
