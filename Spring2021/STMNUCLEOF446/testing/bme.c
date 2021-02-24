@@ -6,6 +6,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <stdlib.h>
+#include <sys/time.h>
 
 #include "bme.h"
 
@@ -26,6 +27,8 @@ uint32_t comp_humidity(uint32_t humidity_msb, uint32_t humidity_lsb, struct bme2
 int main(int argc, char *argv[])
 {
 
+	struct timeval start, end;
+	double cpu_time;
 	int result;
 	int fd;
 	uint8_t ID;
@@ -59,13 +62,18 @@ int main(int argc, char *argv[])
 		
 	printf("Device ID: %x\n", ID);
 
-	while (1) {
+	gettimeofday(&start, NULL);
+	for (int l = 0; l < 100; l++)
+	{
 
 		//printf("Status: %x\n", read_reg(fd, 0xF3));
 		read_data(fd, &calib);
 		//printf("\n\n\n");
-		usleep(100000);
+		//usleep(100000);
 	}
+	gettimeofday(&end, NULL);
+	cpu_time = (end.tv_sec - start.tv_sec);
+	printf("Execution Time: %f\n", cpu_time);
 
 
 	return 0;
@@ -327,6 +335,7 @@ int read_data(int busfd, struct bme280_calib_data *calib)
 	float new_temp;
 	float new_humidity;
 
+	while((read_reg(busfd, 0xf3) & 0x08) != 0);
 
 	sensor_data = burst_read(busfd, 0xF7, 8);
 
