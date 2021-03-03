@@ -1,13 +1,17 @@
 #ifndef SRC_BME280_H_
 #define SRC_BME280_H_
 
+#include "main.h"
+
 #define BME280_CONCAT_BYTES(msb, lsb) (((uint16_t)msb << 8) | (uint16_t)lsb)
 #define TEMPERATURE	0
 #define HUMIDITY	1
+#define SAMPLE_READY	0x08
 
-#define BME280	0x77
+// By defualt, BME280 I2C address is 0x77, but because it is right aligned, shift one place to make left aligned
+#define BME280	(0x77 << 1)
 
-struct bme280_calib_data
+struct BME280_calib_data
 {
 	uint16_t dig_t1;
 
@@ -49,17 +53,17 @@ struct bme280_calib_data
 
 };
 
-static void BME280_parse_calib_data(struct bme280_calib_data *calib);
+void BME280_get_calib_data(struct BME280_calib_data *calib);
 
-int8_t BME280_read_reg(uint8_t addr);
+uint8_t BME280_read_reg(uint8_t addr);
 int8_t BME280_write_reg(uint8_t addr, uint8_t data);
 uint8_t * BME280_burst_read(uint8_t addr, uint8_t number_of_bytes);
 
 void BME280_init();
 
-int32_t BME280_comp_temp(uint32_t temp_msb, uint32_t temp_lsb, uint32_t temp_xlsb, struct bme280_calib_data *calib);
-uint32_t BME280_comp_humidity(uint32_t humidity_msb, uint32_t humidity_lsb, struct bme280_calib_data *calib);
+int32_t BME280_comp_temp(uint32_t temp_msb, uint32_t temp_lsb, uint32_t temp_xlsb, struct BME280_calib_data *calib);
+uint32_t BME280_comp_humidity(uint32_t humidity_msb, uint32_t humidity_lsb, struct BME280_calib_data *calib);
 
-float * BME280_read_data(struct bme280_calib_data *calib);
+float * BME280_read_data(struct BME280_calib_data *calib);
 
 #endif /* SRC_BME280_H_ */

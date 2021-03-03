@@ -57,7 +57,7 @@ uint8_t VL6180X_read_reg(uint16_t reg_addr)
 
 	unsigned char reg_buf[2];
 	HAL_StatusTypeDef bytes;
-	unsigned char data_read;
+	unsigned char data_read[1];
 
 	reg_buf[0] = (reg_addr >> 8) & 0xFF;
 	reg_buf[1] = (reg_addr >> 0) & 0xFF;
@@ -66,7 +66,7 @@ uint8_t VL6180X_read_reg(uint16_t reg_addr)
 
 	if (bytes != HAL_OK)
 	{
-		DebugLog("Error writing to I2C device\r\n");
+		DebugLog("Error in Read Reg---Write\r\n");
 		//return 0;
 	}
 
@@ -74,11 +74,11 @@ uint8_t VL6180X_read_reg(uint16_t reg_addr)
 
 	if (bytes != HAL_OK)
 	{
-		DebugLog("Error reading from I2C device\r\n");
+		DebugLog("Error in Read Reg---Read\r\n");
 		//return 0;
 	}
 
-	return data_read;
+	return data_read[0];
 
 }
 

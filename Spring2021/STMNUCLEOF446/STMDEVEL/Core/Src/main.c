@@ -1,4 +1,5 @@
 /* USER CODE BEGIN Header */
+/* USER CODE BEGIN Header */
 /**
   ******************************************************************************
   * @file           : main.c
@@ -19,19 +20,20 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
-#include <string.h>
 #include <stdio.h>
+#include <string.h>
 #include <unistd.h>
 #include <stdint.h>
 #include <stdbool.h>
+#include <stdlib.h>
 /* Private includes ----------------------------------------------------------*/
-
 /* USER CODE BEGIN Includes */
 #include "SerialDebug.h"
 #include "VL6180X.h"
-#include "BME280.h"
+#include "bme280.h"
 
 #define RANGE_SAMPLES 50
+#define TEST_SAMPLES 200
 
 /* USER CODE END Includes */
 
@@ -65,10 +67,16 @@ static void MX_GPIO_Init(void);
 static void MX_USART2_UART_Init(void);
 static void MX_UART4_Init(void);
 static void MX_I2C1_Init(void);
+static void MX_GPIO_Init(void);
 
 bool CheckTestButton();
 bool check_range();
-//uint8_t * TestMask();
+float ** TestMask();
+int TransmitData(float ** mask_data);
+void ConfigureTransmission();
+
+static void TOGGLE_DISTANCE_LED();
+static void DISTANCE_LED_ON();
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -84,67 +92,91 @@ bool check_range();
   */
 int main(void)
 {
-  /* USER CODE BEGIN 1 */
+	  /* USER CODE BEGIN 1 */
 
-  /* USER CODE END 1 */
+	  /* USER CODE END 1 */
 
-  /* MCU Configuration--------------------------------------------------------*/
+	  /* MCU Configuration--------------------------------------------------------*/
 
-  /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
-  HAL_Init();
+	  /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
+	  HAL_Init();
 
-  /* USER CODE BEGIN Init */
+	  /* USER CODE BEGIN Init */
 
-  /* USER CODE END Init */
+	  /* USER CODE END Init */
 
-  /* Configure the system clock */
-  SystemClock_Config();
+	  /* Configure the system clock */
+	  SystemClock_Config();
 
-  /* USER CODE BEGIN SysInit */
+	  /* USER CODE BEGIN SysInit */
 
-  /* USER CODE END SysInit */
+	  /* USER CODE END SysInit */
 
-  /* Initialize all configured peripherals */
-  MX_GPIO_Init();
-  MX_USART2_UART_Init();
-  MX_UART4_Init();
-  MX_I2C1_Init();
+	  /* Initialize all configured peripherals */
+	  MX_GPIO_Init();
+	  MX_USART2_UART_Init();
+	  MX_UART4_Init();
+	  MX_I2C1_Init();
+	  MX_GPIO_Init();
 
-  VL6180X_init();
-  BME280_init();
+	  VL6180X_init();
+	  BME280_init();
+
+	  // Initialize our calibration data struct, then get the calibration data from the BME280
 
 
+	  // Array to hold temperature and RH data
+	  float ** BME280_data;
 
-  uint8_t buffer[50] = "Apple\r\n";
+	  char buffer[50] = "Apple\r\n";
+	  bool range_test = false;
+	  // Variable to check if test button is pressed, indicating a test should be started
+	  bool test_started = false;
+	  uint8_t ID = BME280_read_reg(0xD0);
 
-  // Variable to check if test button is pressed, indicating a test should be started
-  bool test_started = false;
+	  sprintf(buffer, "ID of BME280: %X\r\n", ID);
+	  //HAL_StatusTypeDef Status;
+	  DebugLog(buffer);
 
-  //HAL_StatusTypeDef Status;
+	  // Add newline to debug serial port to increase readability between tests
+	  DebugLog("\r\n");
+	  /* USER CODE BEGIN WHILE */
+	  while (1)
+	  {
+		  // Check for if a test should be started
+		  test_started = CheckTestButton();
 
-  // Add newline to debug serial port to increase readability between tests
-  DebugLog("\r\n");
-  /* USER CODE BEGIN WHILE */
-  while (1)
-  {
-	  // Check for if a test should be started
-	  test_started = CheckTestButton();
+		  if (test_started){
 
-	  if (test_started){
-		  DebugLog("Beginning Test Now!\r\n");
-		  HAL_UART_Transmit(&huart4, buffer, strlen((const char *)buffer), HAL_MAX_DELAY);
-		  HAL_Delay(500);
+			  ConfigureTransmission();
+			  DebugLog("Beginning Test Now!\r\n");
+			  //HAL_UART_Transmit(&huart4, buffer, strlen((const char *)buffer), HAL_MAX_DELAY);
+			  HAL_Delay(500);
+			  sprintf(buffer, "%d\r\n", range_test);
+			  DebugLog(buffer);
+			  BME280_data = TestMask();
+
+
+			  for (int k = 0; k < TEST_SAMPLES; k++)
+			  {
+				  sprintf(buffer, "Temperature: %f --- Humidity: %f\r\n", BME280_data[TEMPERATURE][k], BME280_data[HUMIDITY][k]);
+				  DebugLog(buffer);
+			  }
+			  DebugLog("Test Complete!\r\nSending Data to RF transmitter\r\n");
+			  TransmitData(BME280_data);
+
+
+		  }
+
 
 	  }
-
-  }
-
 }
 
 /**
   * @brief System Clock Configuration
   * @retval None
   */
+
 bool CheckTestButton()
 {
 	/*
@@ -163,58 +195,168 @@ bool CheckTestButton()
 
 }
 
-/*
-uint8_t * TestMask()
+// Writes to the ESP8266 how many samples are being transmitted
+void ConfigureTransmission()
 {
-	// First we need to confirm if the testee is in range
+	union {
+		int samples_taken;
+		uint8_t samples_taken_to_send[4];
+	} samples;
+
+	samples.samples_taken = TEST_SAMPLES;
+
+	// Send out the number of samples to take
+	HAL_UART_Transmit(&huart4, samples.samples_taken_to_send, 4, HAL_MAX_DELAY);
+
+	return;
+}
+
+
+int TransmitData(float ** mask_data)
+{
+
+	// Union to convert floating point temp data to byte array to be transferred via UART
+	union {
+
+		//float test_num;
+		float temp_to_send;
+		unsigned char bytes_to_send[4];
+
+	} temp_out;
+
+	// Similar union to convert floating point humidity data to byte array for UART transfer
+	union {
+
+		//float test_num;
+		float humidity_to_send;
+		unsigned char bytes_to_send[4];
+
+	} humidity_out;
+
+	//temp_out.temp_to_send = mask_data[TEMPERATURE];
+	//humidity_out.humidity_to_send = mask_data[HUMIDITY][0];
+
+
+	//DebugLog(result);
+
+	// For each sample, convert humidity and temperature to byte array, then send it to ESP8266 via UART
+	for (int i = 0; i < TEST_SAMPLES; i++)
+	{
+		temp_out.temp_to_send = mask_data[TEMPERATURE][i];
+		humidity_out.humidity_to_send = mask_data[HUMIDITY][i];
+
+		HAL_UART_Transmit(&huart4, temp_out.bytes_to_send, 4, HAL_MAX_DELAY);
+		HAL_UART_Transmit(&huart4, humidity_out.bytes_to_send, 4, HAL_MAX_DELAY);
+		//HAL_Delay(500);
+
+		//sprintf(result, "%f --- %f\r\n", humidity_out.humidity_to_send, mask_data[HUMIDITY][i]);
+		//DebugLog(result);
+	}
+	DebugLog("Done sending data to ESP8266!\r\n");
+
+	// Transmission Completed! Cleanup current test data in preparation for another
+	free(mask_data[TEMPERATURE]);
+	free(mask_data[HUMIDITY]);
+	free(mask_data);
+
+	return 0;
+}
+
+
+float ** TestMask()
+{
+
 	bool in_range = false;
 	char countdown[50];
 
+	// Get our factory written BME280 calibration data. Need it to read data
+	struct BME280_calib_data calib;
+	BME280_get_calib_data(&calib);
+
+	// Create a parent array for all the data to be sent to base station
+	float ** mask_data = (float **)malloc(2 * sizeof(float *));
+
+	// Create sub arrays for each sensor type (TEMP and HUMIDITY)
+	mask_data[TEMPERATURE] = (float *) malloc(sizeof(float) * TEST_SAMPLES);
+	mask_data[HUMIDITY] = (float *) malloc(sizeof(float) * TEST_SAMPLES);
+
+	// Array to hold current temp and humidity read back from sensor, and to be appended to list of data
+	float * current_data;
+
+	// Wait until testee is in range
 	while (in_range == false)
 	{
 		in_range = check_range();
 	}
 
-	DebugLog("Please wait until the countdown reaches 0 to begin breathing into the device");
 
-	for (int iter = 0; iter > 0; iter--)
+	// Countdown for user to see, will be replaced in future more than likely by LED's
+	DebugLog("Please wait until the countdown reaches 0 to begin breathing into the device\r\n");
+	for (int iter = 3; iter > 0; iter--)
 	{
 		sprintf(countdown, "BEGIN TESTING IN: %d\r\n", iter);
 		DebugLog(countdown);
+
+		//Sleep for 1 second
+		HAL_Delay(1000);
 	}
 
 	// Now begin sampling the relative humidity and temperature data
+	for (int sample_number = 0; sample_number < TEST_SAMPLES; sample_number++)
+	{
+		current_data = BME280_read_data(&calib);
 
+		HAL_Delay(30);
 
+		// Add to our array of measurements to be sent to ESP via Serial
+		mask_data[TEMPERATURE][sample_number] = current_data[TEMPERATURE];
+		mask_data[HUMIDITY][sample_number] = current_data[HUMIDITY];
+		//sprintf(countdown, "Sample Number: %d --- HUMIDITY: %f\r\n", sample_number, mask_data[HUMIDITY][sample_number]);
+		//DebugLog(countdown);
+	}
 
+	return mask_data;
 }
-*/
+
+static void DISTANCE_LED_OFF()
+{
+	HAL_GPIO_WritePin(GPIOC, GPIO_PIN_5, GPIO_PIN_RESET);
+	return;
+}
+
+static void DISTANCE_LED_ON()
+{
+	HAL_GPIO_WritePin(GPIOC, GPIO_PIN_5, GPIO_PIN_SET);
+	return;
+}
+
 bool check_range()
 {
 	// Hold previous RANGE_SAMPLES in an array, and check that all meet spec (are within 0.5 to 4 inches). This should conclude the testee is in the right spot
 	uint8_t range_readings[RANGE_SAMPLES];
-	uint8_t new_measurement;
-	bool within_spec = false;
 
 	// First fill our buffer of measurements
 	for (int iter = 0; iter < RANGE_SAMPLES; iter++)
 	{
 		// Get a new reading
-		range_readings[iter] = single_range_measurement();
+		range_readings[iter] = VL6180X_single_range_measurement();
 
 		// If any reading is less than 13 mm or greater than 101 mm (Roughly 0.5 to 4 inches)
 		if ((range_readings[iter] < 13) || (range_readings[iter] > 101))
 		{
 			// Out of range. Try checking range once more
+
+			DISTANCE_LED_OFF();
 			return false;
 		}
+
+		DISTANCE_LED_ON();
 
 	}
 
 	return true;
 
 }
-
 void SystemClock_Config(void)
 {
   RCC_OscInitTypeDef RCC_OscInitStruct = {0};
@@ -223,7 +365,7 @@ void SystemClock_Config(void)
   /** Configure the main internal regulator output voltage
   */
   __HAL_RCC_PWR_CLK_ENABLE();
-  __HAL_PWR_VOLTAGESCALING_CONFIG(PWR_REGULATOR_VOLTAGE_SCALE3);
+  __HAL_PWR_VOLTAGESCALING_CONFIG(PWR_REGULATOR_VOLTAGE_SCALE1);
   /** Initializes the RCC Oscillators according to the specified parameters
   * in the RCC_OscInitTypeDef structure.
   */
@@ -232,12 +374,18 @@ void SystemClock_Config(void)
   RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
   RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSI;
-  RCC_OscInitStruct.PLL.PLLM = 16;
-  RCC_OscInitStruct.PLL.PLLN = 336;
-  RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV4;
+  RCC_OscInitStruct.PLL.PLLM = 8;
+  RCC_OscInitStruct.PLL.PLLN = 180;
+  RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV2;
   RCC_OscInitStruct.PLL.PLLQ = 2;
   RCC_OscInitStruct.PLL.PLLR = 2;
   if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /** Activate the Over-Drive mode
+  */
+  if (HAL_PWREx_EnableOverDrive() != HAL_OK)
   {
     Error_Handler();
   }
@@ -247,10 +395,10 @@ void SystemClock_Config(void)
                               |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
   RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
   RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
-  RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV2;
-  RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
+  RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV4;
+  RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV2;
 
-  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_2) != HAL_OK)
+  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_5) != HAL_OK)
   {
     Error_Handler();
   }
@@ -272,7 +420,7 @@ static void MX_I2C1_Init(void)
 
   /* USER CODE END I2C1_Init 1 */
   hi2c1.Instance = I2C1;
-  hi2c1.Init.ClockSpeed = 100000;
+  hi2c1.Init.ClockSpeed = 400000;
   hi2c1.Init.DutyCycle = I2C_DUTYCYCLE_2;
   hi2c1.Init.OwnAddress1 = 0;
   hi2c1.Init.AddressingMode = I2C_ADDRESSINGMODE_7BIT;
@@ -374,6 +522,9 @@ static void MX_GPIO_Init(void)
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(LD2_GPIO_Port, LD2_Pin, GPIO_PIN_RESET);
 
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(GPIOC, GPIO_PIN_8, GPIO_PIN_RESET);
+
   /*Configure GPIO pin : B1_Pin */
   GPIO_InitStruct.Pin = B1_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;
@@ -386,6 +537,13 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(LD2_GPIO_Port, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : PC8 */
+  GPIO_InitStruct.Pin = GPIO_PIN_8;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 
 }
 

@@ -3,6 +3,9 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <unistd.h>
+
+#include "main.h"
 
 #include "bme280.h"
 #include "SerialDebug.h"
@@ -25,7 +28,7 @@ int8_t BME280_write_reg(uint8_t reg_addr, uint8_t data)
 	bytes = HAL_I2C_Master_Transmit(&hi2c1, BME280, reg_buf, 2, HAL_MAX_DELAY);
 
 	if (bytes != HAL_OK) {
-		DebugLog("Error in BME280_BME280_write_reg");
+		DebugLog("Error in BME280_write_reg\r\n");
 		return -1;
 	}
 
@@ -34,7 +37,7 @@ int8_t BME280_write_reg(uint8_t reg_addr, uint8_t data)
 }
 
 // Function reads one singular 8 bit register. Useful for getting ID of device
-int8_t BME280_read_reg(uint8_t reg_addr)
+uint8_t BME280_read_reg(uint8_t reg_addr)
 {
 	// BME280 Datasheet states to write device address followed by 0 bit high (0xEE), followed by register address with 0 bit 1 (0xEF). Device then returns
 	unsigned char reg_buf[1];
@@ -51,7 +54,7 @@ int8_t BME280_read_reg(uint8_t reg_addr)
 
 	if (bytes != HAL_OK) {
 		DebugLog("Error writing to device registers!\r\n");
-		return -1;
+		return 0;
 	}
 
 	// Read back register dictated by the address we passed in
@@ -89,7 +92,7 @@ uint8_t * BME280_burst_read(uint8_t reg_addr, uint8_t bytes_to_read)
 }
 
 // Function taken from BOSCH VL6180X Driver.
-static void BME280_parse_calib_data(struct bme280_calib_data *calib)
+void BME280_get_calib_data(struct BME280_calib_data *calib)
 {
 	// Get temp and pressure calibration data
 	uint8_t * readout = BME280_burst_read(0x88, 26);
@@ -138,7 +141,7 @@ static void BME280_parse_calib_data(struct bme280_calib_data *calib)
 
 
 // Function taken from BOSCH VL6180X Driver.
-int32_t BME280_comp_temp(uint32_t t_msb, uint32_t t_lsb, uint32_t t_xlsb, struct bme280_calib_data *calib)
+int32_t BME280_comp_temp(uint32_t t_msb, uint32_t t_lsb, uint32_t t_xlsb, struct BME280_calib_data *calib)
 {
 	int32_t var1;
 	int32_t var2;
@@ -174,7 +177,7 @@ int32_t BME280_comp_temp(uint32_t t_msb, uint32_t t_lsb, uint32_t t_xlsb, struct
 
 }
 
-uint32_t BME280_comp_humidity(uint32_t h_msb, uint32_t h_lsb, struct bme280_calib_data *calib)
+uint32_t BME280_comp_humidity(uint32_t h_msb, uint32_t h_lsb, struct BME280_calib_data *calib)
 {
 
 	int32_t var1;
@@ -228,9 +231,11 @@ void BME280_init()
 	return;
 }
 
-float * BME280_read_data(struct bme280_calib_data *calib)
+float * BME280_read_data(struct BME280_calib_data *calib)
 {
 	uint8_t * sensor_data;
+
+	char debug[100];
 
 	uint32_t humidity_msb;
 	uint32_t humidity_lsb;
@@ -241,10 +246,15 @@ float * BME280_read_data(struct bme280_calib_data *calib)
 	int32_t temperature;
 	uint32_t humidity;
 
+
+
 	float new_temp;
 	float new_humidity;
 
-	float result[2];
+	float * result = malloc(sizeof(float) * 2);
+
+	// Wait until Sample Available flag has been set
+	while((BME280_read_reg(0xF3) & SAMPLE_READY) != 0);
 
 
 	sensor_data = BME280_burst_read(0xF7, 8);
@@ -272,10 +282,13 @@ float * BME280_read_data(struct bme280_calib_data *calib)
 
 	new_humidity = (float)humidity / 1000;
 
+	//sprintf(debug, "HUMIDITY: %f --- TEMPERATURE: %f\r\n", new_humidity, new_temp);
+	//DebugLog(debug);
+
 	result[TEMPERATURE] = new_temp;
 	result[HUMIDITY] = new_humidity;
 
-	// printf("Temperature: %3.2f ----- Humidity: %3.2f \n", new_temp, new_humidity);
+	// printf("Temperature: %3.2f ----- Humidity: %3.2f --- TEMPERATURE: %f \n", new_temp, new_humidity);
 
 	return result;
 
