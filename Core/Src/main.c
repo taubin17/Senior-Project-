@@ -83,42 +83,15 @@ void EnableRegulator();
 
 static void TOGGLE_DISTANCE_LED();
 static void DISTANCE_LED_ON();
-/* USER CODE BEGIN PFP */
 
-/* USER CODE END PFP */
-
-/* Private user code ---------------------------------------------------------*/
-/* USER CODE BEGIN 0 */
-
-/* USER CODE END 0 */
-
-/**
-  * @brief  The application entry point.
-  * @retval int
-  */
 int main(void)
 {
-
-
-	  /* USER CODE BEGIN 1 */
-
-	  /* USER CODE END 1 */
-
-	  /* MCU Configuration--------------------------------------------------------*/
 
 	  /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
 	  HAL_Init();
 
-	  /* USER CODE BEGIN Init */
-
-	  /* USER CODE END Init */
-
 	  /* Configure the system clock */
 	  SystemClock_Config();
-
-	  /* USER CODE BEGIN SysInit */
-
-	  /* USER CODE END SysInit */
 
 	  /* Initialize all configured peripherals */
 	  MX_GPIO_Init();
@@ -137,41 +110,43 @@ int main(void)
 	  // Array to hold temperature and RH data
 	  float ** BME280_data;
 
-	  char buffer[50] = "Apple\r\n";
-	  bool range_test = false;
 	  // Variable to check if test button is pressed, indicating a test should be started
 	  bool test_started = false;
-	  uint8_t ID = BME280_read_reg(0xD0);
-
-	  sprintf(buffer, "ID of BME280: %X\r\n", ID);
-	  //HAL_StatusTypeDef Status;
-	  DebugLog(buffer);
+	
+	  // Outputs high signal to enable pin of regulator.
 	  EnableRegulator();
+	
 	  // Add newline to debug serial port to increase readability between tests
 	  DebugLog("\r\n");
+	
 	  /* USER CODE BEGIN WHILE */
 	  while (1)
 	  {
-		  //EnableRegulator();
+
 		  // Check for if a test should be started
 		  test_started = CheckTestButton();
+		  
 		  if (test_started){
-
+			  // Tell the ESP8266 how many samples will be measured during test (how many bytes will be sent)
 			  ConfigureTransmission();
+			  
 			  DebugLog("Beginning Test Now!\r\n");
 			  //HAL_UART_Transmit(&huart4, buffer, strlen((const char *)buffer), HAL_MAX_DELAY);
-			  HAL_Delay(500);
-			  sprintf(buffer, "%d\r\n", range_test);
-			  DebugLog(buffer);
+			  //HAL_Delay(500);
+			  //sprintf(buffer, "%d\r\n", range_test);
+			  //DebugLog(buffer);
+			  
+			  // Check if testee is in range. Once in range, read mask data TEST_SAMPLES times 
 			  BME280_data = TestMask();
 
-
+			  // For each sample, debug the samples RH and temp
 			  for (int k = 0; k < TEST_SAMPLES; k++)
 			  {
 				  sprintf(buffer, "Temperature: %f --- Humidity: %f\r\n", BME280_data[TEMPERATURE][k], BME280_data[HUMIDITY][k]);
 				  DebugLog(buffer);
 			  }
 			  DebugLog("Test Complete!\r\nSending Data to RF transmitter\r\n");
+			  // Send the data to ESP8266 over serial.
 			  TransmitData(BME280_data);
 
 
@@ -183,7 +158,7 @@ int main(void)
 
 // Function outputs high signal to TLV62569
 void EnableRegulator() {
-
+	// Sets PC4 pin to High, driving enable pin of TLV62569
 	HAL_GPIO_WritePin(GPIOC, GPIO_PIN_4, GPIO_PIN_SET);
 
 }
@@ -248,11 +223,6 @@ int TransmitData(float ** mask_data)
 
 	} humidity_out;
 
-	//temp_out.temp_to_send = mask_data[TEMPERATURE];
-	//humidity_out.humidity_to_send = mask_data[HUMIDITY][0];
-
-
-	//DebugLog(result);
 
 	// For each sample, convert humidity and temperature to byte array, then send it to ESP8266 via UART
 	for (int i = 0; i < TEST_SAMPLES; i++)
@@ -262,10 +232,7 @@ int TransmitData(float ** mask_data)
 
 		HAL_UART_Transmit(&huart4, temp_out.bytes_to_send, 4, HAL_MAX_DELAY);
 		HAL_UART_Transmit(&huart4, humidity_out.bytes_to_send, 4, HAL_MAX_DELAY);
-		//HAL_Delay(500);
 
-		//sprintf(result, "%f --- %f\r\n", humidity_out.humidity_to_send, mask_data[HUMIDITY][i]);
-		//DebugLog(result);
 	}
 	DebugLog("Done sending data to ESP8266!\r\n");
 
