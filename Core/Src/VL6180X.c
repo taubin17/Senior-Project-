@@ -9,6 +9,7 @@ I2C_HandleTypeDef hi2c1;
 
 UART_HandleTypeDef huart2;
 
+// Function is useful for debugging, reads register and prints value read, then writes a new value to register, and reads once more to ensure register is being set
 void VL6180X_test_write(uint16_t reg_to_test)
 {
 	unsigned char result;
@@ -27,31 +28,37 @@ void VL6180X_test_write(uint16_t reg_to_test)
 
 }
 
-
+// Heart of VL6180X driver, reads one singular range measurement. 
 uint8_t VL6180X_single_range_measurement()
 {
 	uint8_t range;
 	char range_status;
 
+	// Tells device to begin sampling for range measurement
 	VL6180X_write_reg(0x018, 0x01);
 
+	// Get the status of range measurement
 	range_status = VL6180X_read_reg(0x04f);
 	range_status = range_status & 0x07;
 
+	// If it is not ready, wait until it is ready. This ensures the readout for each proximity measurement is a new measurement
 	while (range_status != 0x04)
 	{
 		range_status = VL6180X_read_reg(0x04f);
 		range_status = range_status & 0x07;
 	}
 
+	// Now get the resulting range measurement 
 	range = VL6180X_read_reg(0x062);
 
-
+	
+	// Tell the device to clear the current range measurement
 	VL6180X_write_reg(0x015, 0x07);
+	
 	return range;
 }
 
-
+// Read reg works by writing to the device what register you want to read. The device then transmits back the register value 
 uint8_t VL6180X_read_reg(uint16_t reg_addr)
 {
 
@@ -59,17 +66,21 @@ uint8_t VL6180X_read_reg(uint16_t reg_addr)
 	HAL_StatusTypeDef bytes;
 	unsigned char data_read[1];
 
+	// Set the address to be read from device
 	reg_buf[0] = (reg_addr >> 8) & 0xFF;
 	reg_buf[1] = (reg_addr >> 0) & 0xFF;
 
+	// Send the address over I2C line
 	bytes = HAL_I2C_Master_Transmit(&hi2c1, VL6180X, reg_buf, 2, HAL_MAX_DELAY);
 
+	// If an error occurs during transmission, report error
 	if (bytes != HAL_OK)
 	{
 		DebugLog("Error in Read Reg---Write\r\n");
 		//return 0;
 	}
 
+	// If an error occurs during transmission, report error
 	bytes = HAL_I2C_Master_Receive(&hi2c1, VL6180X, data_read, 1, HAL_MAX_DELAY);
 
 	if (bytes != HAL_OK)
@@ -82,6 +93,7 @@ uint8_t VL6180X_read_reg(uint16_t reg_addr)
 
 }
 
+// Write reg works similar to read reg, but an additional byte is sent containing the value to set register to
 void VL6180X_write_reg(uint16_t reg_addr, uint8_t data_to_write)
 {
 	unsigned char reg_buf[3];
@@ -103,6 +115,7 @@ void VL6180X_write_reg(uint16_t reg_addr, uint8_t data_to_write)
 	return;
 }
 
+// Init uses write_reg to write registers to values GIVEN BY STM VL6180X datasheet. 
 void VL6180X_init()
 {
 	char reset;
@@ -139,6 +152,7 @@ void VL6180X_init()
 	VL6180X_write_reg(0x01a7, 0x1f);
 	VL6180X_write_reg(0x0030, 0x00);
 
+	// Additional settings useful for project
 	VL6180X_write_reg(0x0011, 0x10); // Enables polling for "New Sample Ready" instead of constant sample
 	VL6180X_write_reg(0x010a, 0x30); // Sets averaging period of device to value recommended by STM community
 	VL6180X_write_reg(0x003f, 0x46); // Sets light gain. Useful for light sensor if implemented in project
@@ -149,7 +163,7 @@ void VL6180X_init()
 	VL6180X_write_reg(0x003e, 0x31); // Set default ALS inter measurement to 500 ms. Again, reduces noise
 	VL6180X_write_reg(0x0014, 0x24); // Configured interrupt on "New Sample Ready" condition. Useful for interrupts if implemented
 
-
+	// Reset to activate changes
 	reset = VL6180X_read_reg(0x016);
 
 	if (reset == 1)
