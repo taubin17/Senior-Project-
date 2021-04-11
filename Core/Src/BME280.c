@@ -91,7 +91,7 @@ uint8_t * BME280_burst_read(uint8_t reg_addr, uint8_t bytes_to_read)
 	return data_read;
 }
 
-// Function taken from BOSCH VL6180X Driver.
+// Function taken from BOSCH BME280 Driver.
 void BME280_get_calib_data(struct BME280_calib_data *calib)
 {
 	// Get temp and pressure calibration data
@@ -140,7 +140,8 @@ void BME280_get_calib_data(struct BME280_calib_data *calib)
 }
 
 
-// Function taken from BOSCH VL6180X Driver.
+// Function taken from BOSCH BME280 Driver. 
+// Function uses the raw readout of the Temperature Sensor data register, and uses the factory written temperature calibration data to return accurate temperature.
 int32_t BME280_comp_temp(uint32_t t_msb, uint32_t t_lsb, uint32_t t_xlsb, struct BME280_calib_data *calib)
 {
 	int32_t var1;
@@ -177,6 +178,7 @@ int32_t BME280_comp_temp(uint32_t t_msb, uint32_t t_lsb, uint32_t t_xlsb, struct
 
 }
 
+// Function uses the raw readout of the Humidity Sensor data register, and uses the factory written humidity calibration data to return accurate %RH
 uint32_t BME280_comp_humidity(uint32_t h_msb, uint32_t h_lsb, struct BME280_calib_data *calib)
 {
 
@@ -221,6 +223,7 @@ uint32_t BME280_comp_humidity(uint32_t h_msb, uint32_t h_lsb, struct BME280_cali
 
 }
 
+// Init function to set registers to help meet project constraints. Enables Temperature and Humidity oversampling (to meet averaging requirement), as well as sets period of measurement to maximum
 void BME280_init()
 {
 	BME280_write_reg(0xF2, 0x7); // Writes to humidity oversampling register to oversample 16 times. This means to meet contract specs, simply average 2 measurements
@@ -231,6 +234,7 @@ void BME280_init()
 	return;
 }
 
+// The heart of the driver, this function uses burst read to read all raw sensor data, and uses each different sensors relative calibration data to return accurate measurements for temperature and relative humidity
 float * BME280_read_data(struct BME280_calib_data *calib)
 {
 	uint8_t * sensor_data;
@@ -256,9 +260,10 @@ float * BME280_read_data(struct BME280_calib_data *calib)
 	// Wait until Sample Available flag has been set
 	while((BME280_read_reg(0xF3) & SAMPLE_READY) != 0);
 
-
+	// Read all raw sensor data
 	sensor_data = BME280_burst_read(0xF7, 8);
 
+	// Separate all sensor data to respective sensor
 	temp_msb = sensor_data[3] << 12;
 	temp_lsb = sensor_data[4] << 4;
 	temp_xlsb = sensor_data[5] >> 4;
@@ -275,6 +280,7 @@ float * BME280_read_data(struct BME280_calib_data *calib)
 	// Done with sensor data, free it from heap
 	free(sensor_data);
 
+	// Comp temp and humidity data to get usable result
 	temperature = BME280_comp_temp(temp_msb, temp_lsb, temp_xlsb, calib);
 	humidity = BME280_comp_humidity(humidity_msb, humidity_lsb, calib);
 
