@@ -29,7 +29,7 @@ int8_t BME280_write_reg(uint8_t reg_addr, uint8_t data)
 
 	if (bytes != HAL_OK) {
 		DebugLog("Error in BME280_write_reg\r\n");
-		return -1;
+		exit(-1);
 	}
 
 	return 0;
@@ -54,7 +54,7 @@ uint8_t BME280_read_reg(uint8_t reg_addr)
 
 	if (bytes != HAL_OK) {
 		DebugLog("Error writing to device registers!\r\n");
-		return 0;
+		exit(-1);
 	}
 
 	// Read back register dictated by the address we passed in
@@ -83,7 +83,7 @@ uint8_t * BME280_burst_read(uint8_t reg_addr, uint8_t bytes_to_read)
 	// If write failed
 	if (bytes != HAL_OK) {
 		DebugLog("Error writing register address!\r\n");
-		return NULL;
+		exit(-1);
 	}
 
 	bytes = HAL_I2C_Master_Receive(&hi2c1, BME280, data_read, bytes_to_read, HAL_MAX_DELAY);
@@ -252,6 +252,14 @@ float * BME280_read_data(struct BME280_calib_data *calib)
 	float new_humidity;
 
 	float * result = malloc(sizeof(float) * 2);
+
+	if (result == NULL)
+	{
+
+		DebugLog("Error creating memory to hold data read from BME280!\r\n");
+		exit(-1);
+
+	}
 
 	// Wait until Sample Available flag has been set
 	while((BME280_read_reg(0xF3) & SAMPLE_READY) != 0);

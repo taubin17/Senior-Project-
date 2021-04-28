@@ -67,7 +67,7 @@ uint8_t VL6180X_read_reg(uint16_t reg_addr)
 	if (bytes != HAL_OK)
 	{
 		DebugLog("Error in Read Reg---Write\r\n");
-		//return 0;
+		exit(-1);
 	}
 
 	bytes = HAL_I2C_Master_Receive(&hi2c1, VL6180X, data_read, 1, HAL_MAX_DELAY);
@@ -75,7 +75,7 @@ uint8_t VL6180X_read_reg(uint16_t reg_addr)
 	if (bytes != HAL_OK)
 	{
 		DebugLog("Error in Read Reg---Read\r\n");
-		//return 0;
+		exit(-1);
 	}
 
 	return data_read[0];
@@ -97,6 +97,7 @@ void VL6180X_write_reg(uint16_t reg_addr, uint8_t data_to_write)
 	{
 
 		DebugLog("Error reading from I2C device\r\n");
+		exit(-1);
 
 	}
 
