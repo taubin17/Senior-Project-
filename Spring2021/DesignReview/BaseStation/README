@@ -1,0 +1,3 @@
+This is all of the current, up-to-date, project code to be presented in the Design Review for the ECE406 course. All base station related code, such as measuring mask effectivity, and the related GUI's are included in the BaseStation directory.
+The STMDEVEL library includes all of the code related to the STM32 Nucleo F446RE code. This includes the main STM32 Nucleo code, and the drivers to control the BME280 and the VL6180X.
+The ESP8266 directory contains all neccessary code related to the ESP8266. This includes the code to enable the UART for use, the webrepl, as well as the boot and main code.
