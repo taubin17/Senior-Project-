@@ -160,12 +160,3 @@ void VL6180X_init()
 
 	return;
 }
-
-
-
-
-
-
-
-
-
