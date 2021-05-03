@@ -1,3 +1,4 @@
+/* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include <stdio.h>
 #include <string.h>
@@ -6,10 +7,14 @@
 #include <stdbool.h>
 #include <stdlib.h>
 
+/* Private includes ----------------------------------------------------------*/
+/* USER CODE BEGIN Includes */
 #include "SerialDebug.h"
 #include "VL6180X.h"
 #include "bme280.h"
 
+/* Private define ------------------------------------------------------------*/
+/* USER CODE BEGIN PD */
 #define RANGE_SAMPLES 500
 #define TEST_SAMPLES 200
 #define MIN_OPERATING_VOLTAGE 3.3
@@ -35,31 +40,55 @@ static void MX_GPIO_Init(void);
 static void MX_USART1_UART_Init(void);
 static void MX_ADC1_Init(void);
 
-/* User private function prototypes */
+
+// USER FUNCTION PROTOTYPES
 bool CheckTestButton();
 bool check_range();
+
 float ** TestMask();
 float ** GetBaselineReadings(struct BME280_calib_data calib);
+
 int TransmitData(float ** mask_data, int sizeInBytes);
+
 void ConfigureTransmission();
 void EnableRegulator(float batteryVoltage);
+
 void DISTANCE_LED_OFF();
 void DISTANCE_LED_ON();
 void RESPIRATION_LED_ON();
 void RESPIRATION_LED_OFF();
 void COMPLETE_LED_ON();
 void COMPLETE_LED_OFF();
+
 void Free2DFloat(float ** floatToClear);
+
 float CheckBatteryVoltage();
 float CheckRegulatorVoltage();
 
+/* MAIN LOOP */
 int main(void)
 {
+
+
+	  /* USER CODE BEGIN 1 */
+
+	  /* USER CODE END 1 */
+
+	  /* MCU Configuration--------------------------------------------------------*/
+
 	  /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
 	  HAL_Init();
 
+	  /* USER CODE BEGIN Init */
+
+	  /* USER CODE END Init */
+
 	  /* Configure the system clock */
 	  SystemClock_Config();
+
+	  /* USER CODE BEGIN SysInit */
+
+	  /* USER CODE END SysInit */
 
 	  /* Initialize all configured peripherals */
 	  MX_GPIO_Init();
@@ -80,7 +109,6 @@ int main(void)
 	  float ** baselineReadings;
 	  float batteryVoltage;
 
-	  // Buffer to be used for debugging
 	  char buffer[50];
 
 	  // Variable to check if test button is pressed, indicating a test should be started
@@ -97,6 +125,7 @@ int main(void)
 	  /* USER CODE BEGIN WHILE */
 	  while (1)
 	  {
+		  //EnableRegulator();
 		  // Check for if a test should be started
 		  test_started = CheckTestButton();
 		  if (test_started){
@@ -116,6 +145,8 @@ int main(void)
 			  // A nice debug to alert BME280 now being polled for test data
 			  DebugLog("Beginning Test Now!\r\n");
 
+			  //HAL_Delay(500);
+
 			  RESPIRATION_LED_ON();
 			  BME280_data = TestMask(calib);
 			  RESPIRATION_LED_OFF();
@@ -126,7 +157,6 @@ int main(void)
 				  sprintf(buffer, "Temperature: %f --- Humidity: %f\r\n", BME280_data[TEMPERATURE][k], BME280_data[HUMIDITY][k]);
 				  DebugLog(buffer);
 			  }
-			  
 			  // Transmit our newly acquired test data, and proceed to free the memory
 			  DebugLog("Test Complete!\r\nSending Data to RF transmitter\r\n");
 			  TransmitData(BME280_data, TEST_SAMPLES);
@@ -143,12 +173,15 @@ int main(void)
 // Clears the standard BME280 double pointer float. Frees the inner arrays, then frees parent array
 void Free2DFloat(float ** floatToClear)
 {
+
+
 	free(floatToClear[TEMPERATURE]);
 	free(floatToClear[HUMIDITY]);
 
 	free(floatToClear);
 
 	return;
+
 }
 
 float ** GetBaselineReadings(struct BME280_calib_data calib)
@@ -231,6 +264,9 @@ float CheckBatteryVoltage()
     //HAL_Delay(100);
 
 	return real;
+
+
+
 }
 
 // Function outputs high signal to TLV62569 permitted battery voltage is greater than MIN_OPERATING_VOLTAGE
@@ -255,10 +291,16 @@ void EnableRegulator(float batteryVoltage)
 	}
 
 	return;
+
 }
 
 bool CheckTestButton()
 {
+	/*
+	 * This function will be changed in the place of an actual push button
+	 * For now, it simply reads when the button is pressed down.
+	 * Upon press, the test begins
+	 */
 	if (HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_13) != GPIO_PIN_SET)
 	{
 
@@ -295,10 +337,10 @@ void ConfigureTransmission()
 	return;
 }
 
-// Function takes in a 2D float, and a number of floats to send, and converts to bytes and then sends said bytes over UART
+// Takes in a 2D float array, converts to bytes, and sends over UART 6
 int TransmitData(float ** mask_data, int sizeInBytes)
 {
-	// Used to check return of HAL functions
+
 	uint8_t result;
 
 	// Union to convert floating point temp data to byte array to be transferred via UART
@@ -342,15 +384,19 @@ int TransmitData(float ** mask_data, int sizeInBytes)
 			DebugLog("Error sending humidity to ESP8266!\r\n");
 
 		}
-		
+
+
+		//HAL_Delay(500);
+
+		//sprintf(result, "%f --- %f\r\n", humidity_out.humidity_to_send, mask_data[HUMIDITY][i]);
+		//DebugLog(result);
 	}
-	
 	DebugLog("Done sending data to ESP8266!\r\n");
 
 	return 0;
 }
 
-// Function used BME280 calibration struct, and returns a 2D float of BME280 temp and humidity samples of size TEST_SAMPLES
+// Takes a BME280 calibration structure, and returns the appropriate BME280 measurements
 float ** TestMask(struct BME280_calib_data calib)
 {
 
@@ -458,13 +504,13 @@ void COMPLETE_LED_ON()
 	return;
 }
 
-// Function uses the VL6180X to check if anyone is in range, and if they stay in range for RANGE_SAMPLES, returns true
+
 bool check_range()
 {
 	// Hold previous RANGE_SAMPLES in an array, and check that all meet spec (are within 0.5 to 4 inches). This should conclude the testee is in the right spot
 	uint8_t range_readings[RANGE_SAMPLES];
 
-	DISTANCE_LED_ON();
+
 
 	// First fill our buffer of measurements
 	for (int iter = 0; iter < RANGE_SAMPLES; iter++)
@@ -476,8 +522,16 @@ bool check_range()
 		if ((range_readings[iter] < 13) || (range_readings[iter] > 101))
 		{
 			// Out of range. Try checking range once more
+			DISTANCE_LED_OFF();
 			return false;
 		}
+
+		// Otherwise, testee is in range, turn the light on!
+		else
+		{
+			DISTANCE_LED_ON();
+		}
+
 
 	}
 
@@ -486,7 +540,7 @@ bool check_range()
 
 }
 
-/* STM32 Peripheral Setup Functions */
+/* STM PERIPHERAL FUNCTIONS (GENERATED BY STM32 CUBE IDE) */
 
 void SystemClock_Config(void)
 {
@@ -822,5 +876,3 @@ void assert_failed(uint8_t *file, uint32_t line)
   /* USER CODE END 6 */
 }
 #endif /* USE_FULL_ASSERT */
-
-/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/
